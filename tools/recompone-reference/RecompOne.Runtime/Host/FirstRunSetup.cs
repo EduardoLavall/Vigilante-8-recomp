@@ -189,14 +189,14 @@ public static class FirstRunSetup
             ImGui.PopStyleColor(3);
             ImGui.PopStyleVar(2);
             ui.Render();
-            if (exitRequested) window.Close();
             string phase = p.Phase is "files" or "music" ? p.Phase + "-" + (p.Current * 4 / Math.Max(1, p.Total)) : p.Phase;
             if (captures != null && frames > 1 && captured.Add(phase)) Capture(gl, window, captures, phase);
             // A process-local fixture calls the same selection/import action as
             // the button. It never sends input to Windows or another process.
             if (++frames == 5 && !installed && (fixture != null || initialSource != null)) Start(fixture ?? initialSource!);
-            if (done && ++completionFrames >= 30) window.Close();
-            if (fixture != null && p.Phase == "error" && captured.Contains("error")) window.Close();
+            if (done && ++completionFrames >= 30) exitRequested = true;
+            if (fixture != null && p.Phase == "error" && captured.Contains("error")) exitRequested = true;
+            if (exitRequested) window.Close();
         };
         // Silk destroys the context before Run returns. Release GPU objects
         // while Closing still has the setup context current.
