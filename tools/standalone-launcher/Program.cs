@@ -220,12 +220,27 @@ internal sealed class LauncherForm : Form
     void RefreshStatus()
     {
         bool exe = File.Exists(_gameExe);
-        _installStatus.ForeColor = exe && Installed ? Good : Muted;
+        bool installed = Installed;
+        _installStatus.ForeColor = exe && installed ? Good : Muted;
+        string textureRoot = Path.Combine(_directory, "mods", "enhanced_textures_2x", "images");
+        int textureCount = -1;
+        try
+        {
+            if (Directory.Exists(textureRoot))
+                textureCount = Directory.EnumerateFiles(textureRoot, "*.dds",
+                    SearchOption.AllDirectories).Count();
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+
         _installStatus.Text = !exe
             ? "Missing Vigilante8PC.exe — copy this launcher into the game folder."
-            : Installed ? "GAME DATA READY  •  Press Play" : "Game found. Disc import required.";
-        _play.Enabled = exe && Installed;
-        _install.Enabled = exe && !Installed && !_installing;
+            : !installed ? "Game found. Disc import required."
+            : textureCount > 0
+                ? "GAME DATA READY  •  HD pack: " + textureCount + " DDS textures"
+                : "GAME DATA READY  •  WARNING: HD texture pack not found";
+        _play.Enabled = exe && installed;
+        _install.Enabled = exe && !installed && !_installing;
     }
 
     void PickCue()
