@@ -92,9 +92,14 @@ public static class FirstRunSetup
             LooseImportProgress p; string message; bool done;
             lock (gate) { p = progress; message = error; done = success; }
             bool busy = import != null && !import.IsCompleted && p.Phase != "error";
+            bool exitRequested = false;
             ImGui.SetNextWindowPos(Vector2.Zero);
             ImGui.SetNextWindowSize(new Vector2(window.Size.X, window.Size.Y));
             ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(26, 22));
+            ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 6f);
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(0.065f, 0.075f, 0.092f, 1f));
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(0.14f, 0.16f, 0.19f, 1f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.67f, 0.43f, 0.23f, 1f));
             ImGui.Begin("Vigilante 8 Classic Launcher",
                 ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove |
                 ImGuiWindowFlags.NoSavedSettings);
@@ -117,7 +122,7 @@ public static class FirstRunSetup
                 if (ImGui.Button("PLAY SECOND OFFENSE", new Vector2(280, 52)))
                 {
                     success = true;
-                    window.Close();
+                    exitRequested = true;
                 }
                 ImGui.PopStyleColor();
             }
@@ -177,11 +182,14 @@ public static class FirstRunSetup
             ImGui.Spacing();
             ImGui.Separator();
             ImGui.TextDisabled("Game data and saves stay in this installation folder. No PS1 disc files are bundled.");
-            if (!done && ImGui.Button(busy ? "CANCEL INSTALLATION" : "EXIT", new Vector2(205, 36)))
-                window.Close();
+            if (!done && !exitRequested &&
+                ImGui.Button(busy ? "CANCEL INSTALLATION" : "EXIT", new Vector2(205, 36)))
+                exitRequested = true;
             ImGui.End();
-            ImGui.PopStyleVar();
+            ImGui.PopStyleColor(3);
+            ImGui.PopStyleVar(2);
             ui.Render();
+            if (exitRequested) window.Close();
             string phase = p.Phase is "files" or "music" ? p.Phase + "-" + (p.Current * 4 / Math.Max(1, p.Total)) : p.Phase;
             if (captures != null && frames > 1 && captured.Add(phase)) Capture(gl, window, captures, phase);
             // A process-local fixture calls the same selection/import action as
