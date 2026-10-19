@@ -130,13 +130,7 @@ internal sealed class LauncherForm : Form
         };
     }
 
-    static Panel AddPanel(int x, int y, int width, int height)
-    {
-        // Parent is set by the caller after constructing the panel.
-        return throw new NotSupportedException();
-    }
-
-    Panel AddPanel(int x, int y, int width, int height, bool unused = true)
+    Panel AddPanel(int x, int y, int width, int height)
     {
         var panel = new Panel
         {
@@ -361,16 +355,20 @@ internal sealed class LauncherForm : Form
         Choose(_antialiasing, Read(config, "AntiAliasing", "FXAA"));
         Choose(_msaa, Read(config, "MsaaSamples", "2"));
         Choose(_lod, Read(config, "LevelOfDetail", "Maximum"));
-        _widescreen.Checked = Read(config, "Widescreen", "True") == "True";
-        _hdTextures.Checked = Read(config, "HighResolutionTextures", "True") == "True";
-        _smooth.Checked = Read(config, "TextureSmoothing", "True") == "True";
-        _fullscreen.Checked = Read(config, "Fullscreen", "False") == "True";
-        _drawDistance.Checked = Read(config, "ExtendedDrawDistance", "True") == "True";
-        _mipmaps.Checked = Read(config, "TextureMipmaps", "True") == "True";
+        _widescreen.Checked = ReadBool(config, "Widescreen", true);
+        _hdTextures.Checked = ReadBool(config, "HighResolutionTextures", true);
+        _smooth.Checked = ReadBool(config, "TextureSmoothing", true);
+        _fullscreen.Checked = ReadBool(config, "Fullscreen", false);
+        _drawDistance.Checked = ReadBool(config, "ExtendedDrawDistance", true);
+        _mipmaps.Checked = ReadBool(config, "TextureMipmaps", true);
     }
 
     static string Read(Dictionary<string, string> dict, string key, string fallback) =>
         dict.TryGetValue(key, out var value) ? value : fallback;
+
+    static bool ReadBool(Dictionary<string, string> dict, string key, bool fallback) =>
+        dict.TryGetValue(key, out var value) && bool.TryParse(value, out bool parsed)
+            ? parsed : fallback;
 
     static void Choose(ComboBox combo, string option)
     {
