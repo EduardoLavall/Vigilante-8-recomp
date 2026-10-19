@@ -58,6 +58,12 @@ for (int index = 0; index < launchArguments.Count; index++)
 }
 args = launchArguments.ToArray();
 
+// --launcher is opt-in so existing shortcuts, automated smoke runs and
+// direct game startup keep their current behavior.
+bool showLauncher = args.Length == 1 &&
+    args[0].Equals("--launcher", StringComparison.OrdinalIgnoreCase);
+if (showLauncher) args = [];
+
 if (args.Length == 3 &&
     args[0].Equals("--extract-loose", StringComparison.OrdinalIgnoreCase))
 {
@@ -504,9 +510,11 @@ string? explicitSource = args.Length switch
 };
 
 ConfigManager.Load();
+string importedLooseRoot = V82LooseImporter.DefaultRoot;
+if (showLauncher && !FirstRunSetup.Run(importedLooseRoot))
+    return 0;
 string? loosePath =
     explicitLoose ?? ResolveLooseSource(explicitSource ?? executableDirectory);
-string importedLooseRoot = V82LooseImporter.DefaultRoot;
 if (loosePath == null && explicitSource == null &&
     V82LooseImporter.IsComplete(importedLooseRoot))
     loosePath = importedLooseRoot;
