@@ -21,7 +21,7 @@ public static class FirstRunSetup
         GlfwWindowing.Use();
         using var window = Silk.NET.Windowing.Window.Create(WindowOptions.Default with
         {
-            Title = "Vigilante 8 Classic - Setup", Size = new Vector2D<int>(800, 420),
+            Title = "Vigilante 8 Classic | Launcher", Size = new Vector2D<int>(920, 540),
             IsVisible = Environment.GetEnvironmentVariable("RECOMPONE_WINDOW_VISIBLE") != "0",
             VSync = true,
             API = new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Core, ContextFlags.Default, new APIVersion(4, 5))
@@ -34,6 +34,7 @@ public static class FirstRunSetup
         var gate = new object();
         var progress = new LooseImportProgress("welcome", 0, 1, "");
         string error = "", selected = initialSource ?? "";
+        bool installed = V82LooseImporter.IsComplete(destination);
         bool success = false;
         int frames = 0, completionFrames = 0;
         string? fixture = Environment.GetEnvironmentVariable("RECOMPONE_SETUP_TEST_SOURCE");
@@ -42,8 +43,19 @@ public static class FirstRunSetup
 
         void Start(string source)
         {
-            selected = source; error = "";
-            lock (gate) progress = new("validating", 0, 1, "Checking disc title ID");
+            if (import is { IsCompleted: false }) return;
+            source = source.Trim().Trim('"');
+            if (source.Length == 0)
+            {
+                lock (gate) error = "Paste the full path to your CUE or BIN before installing.";
+                return;
+            }
+            selected = source;
+            lock (gate)
+            {
+                error = "";
+                progress = new("validating", 0, 1, "Checking disc title ID");
+            }
             import = Task.Run(() =>
             {
                 try
@@ -82,41 +94,99 @@ public static class FirstRunSetup
             bool busy = import != null && !import.IsCompleted && p.Phase != "error";
             ImGui.SetNextWindowPos(Vector2.Zero);
             ImGui.SetNextWindowSize(new Vector2(window.Size.X, window.Size.Y));
-            ImGui.Begin("Setup", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings);
-            ImGui.SetWindowFontScale(1.5f);
-            ImGui.TextColored(new Vector4(1, 0.8f, 0.05f, 1), "VIGILANTE 8 CLASSIC");
-            ImGui.Separator(); ImGui.Spacing();
-            ImGui.TextWrapped("Choose your Vigilante 8: 2nd Offense (USA) CUE or BIN file to install the game.");
-            ImGui.TextWrapped("Keep the CUE and all its BIN files together. Required title ID: SLUS-00868.");
+            ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(26, 22));
+            ImGui.Begin("Vigilante 8 Classic Launcher",
+                ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove |
+                ImGuiWindowFlags.NoSavedSettings);
+            ImGui.SetWindowFontScale(1.55f);
+            ImGui.TextColored(new Vector4(0.98f, 0.73f, 0.30f, 1f), "VIGILANTE 8 CLASSIC");
+            ImGui.SetWindowFontScale(1f);
+            ImGui.TextColored(new Vector4(0.73f, 0.76f, 0.79f, 1f),
+                "Second Offense (USA)  |  SLUS-00868  |  PC recompilation");
+            ImGui.Separator();
             ImGui.Spacing();
-            if (selected.Length != 0) ImGui.TextWrapped("Selected: " + Path.GetFileName(selected));
-            if (!busy && !done)
+            if (installed)
             {
-                if (ImGui.Button("Choose BIN / CUE...", new Vector2(250, 42)))
+                ImGui.TextColored(new Vector4(0.48f, 0.87f, 0.57f, 1f),
+                    "GAME DATA INSTALLED");
+                ImGui.TextWrapped("Your disc was imported successfully. You no longer need to select the BIN/CUE to play.");
+                ImGui.Spacing();
+                ImGui.TextWrapped("Graphics: use OPTIONS > Video inside the game to set widescreen, resolution and enhanced textures.");
+                ImGui.Spacing();
+                ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.55f, 0.31f, 0.13f, 1f));
+                if (ImGui.Button("PLAY SECOND OFFENSE", new Vector2(280, 52)))
                 {
-                    string? file = ChooseDisc();
-                    if (file != null) Start(file);
+                    success = true;
+                    window.Close();
+                }
+                ImGui.PopStyleColor();
+            }
+            else
+            {
+                ImGui.TextColored(new Vector4(0.94f, 0.88f, 0.74f, 1f),
+                    "STEP 1   SELECT YOUR ORIGINAL DISC");
+                ImGui.TextWrapped("Select the USA PlayStation Vigilante 8: 2nd Offense CUE file. Keep the CUE and every BIN it references together.");
+                ImGui.Spacing();
+                if (!busy && !done)
+                {
+                    ImGui.TextDisabled("Disc image path (CUE or BIN):");
+                    ImGui.SetNextItemWidth(-1f);
+                    ImGui.InputText("##discPath", ref selected, 4096);
+                    ImGui.Spacing();
+                    if (ImGui.Button("BROWSE FILES...", new Vector2(206, 42)))
+                    {
+                        try
+                        {
+                            string? file = ChooseDisc();
+                            if (file != null) { selected = file; error = ""; }
+                        }
+                        catch (Exception ex)
+                        {
+                            lock (gate) error = "File picker failed: " + ex.Message +
+                                ". Paste the path above instead.";
+                            Console.Error.WriteLine("[Setup] file picker failed: " + ex);
+                        }
+                    }
+                    ImGui.SameLine();
+                    ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.55f, 0.31f, 0.13f, 1f));
+                    if (ImGui.Button("INSTALL FROM PATH", new Vector2(235, 42)))
+                        Start(selected);
+                    ImGui.PopStyleColor();
+                    ImGui.TextDisabled("Tip: copy a path in Explorer and paste it here. Quotation marks are accepted.");
+                }
+                if (busy || done)
+                {
+                    ImGui.Spacing();
+                    ImGui.TextColored(new Vector4(0.94f, 0.88f, 0.74f, 1f),
+                        "STEP 2   PREPARE GAME DATA");
+                    ImGui.Text(p.Phase == "complete" ? "Installation complete" :
+                        p.Phase == "music" ? "Preparing music..." :
+                        p.Phase == "validating" ? "Checking disc..." :
+                        "Extracting game files...");
+                    ImGui.ProgressBar((float)p.Current / Math.Max(1, p.Total), new Vector2(-1, 30));
+                    ImGui.TextWrapped(p.Item);
                 }
                 if (message.Length != 0)
                 {
-                    ImGui.Spacing(); ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, 0.5f, 0.4f, 1));
-                    ImGui.TextWrapped(message); ImGui.PopStyleColor();
+                    ImGui.Spacing();
+                    ImGui.TextColored(new Vector4(1f, 0.55f, 0.41f, 1f), "INSTALLATION ERROR");
+                    ImGui.TextWrapped(message);
+                    ImGui.TextDisabled("Your BIN/CUE files were not changed. Check v8_latest.log for details.");
                 }
             }
-            if (busy || done)
-            {
-                ImGui.Text(p.Phase == "complete" ? "Installation complete" : p.Phase == "music" ? "Preparing music..." : p.Phase == "validating" ? "Checking disc..." : "Extracting game files...");
-                ImGui.ProgressBar((float)p.Current / Math.Max(1, p.Total), new Vector2(-1, 30));
-                ImGui.TextWrapped(p.Item);
-            }
             ImGui.Spacing();
-            if (!done && ImGui.Button(busy ? "Cancel installation" : "Exit", new Vector2(220, 36))) window.Close();
-            ImGui.End(); ui.Render();
+            ImGui.Separator();
+            ImGui.TextDisabled("Game data and saves stay in this installation folder. No PS1 disc files are bundled.");
+            if (!done && ImGui.Button(busy ? "CANCEL INSTALLATION" : "EXIT", new Vector2(205, 36)))
+                window.Close();
+            ImGui.End();
+            ImGui.PopStyleVar();
+            ui.Render();
             string phase = p.Phase is "files" or "music" ? p.Phase + "-" + (p.Current * 4 / Math.Max(1, p.Total)) : p.Phase;
             if (captures != null && frames > 1 && captured.Add(phase)) Capture(gl, window, captures, phase);
             // A process-local fixture calls the same selection/import action as
             // the button. It never sends input to Windows or another process.
-            if (++frames == 5 && (fixture != null || initialSource != null)) Start(fixture ?? initialSource!);
+            if (++frames == 5 && !installed && (fixture != null || initialSource != null)) Start(fixture ?? initialSource!);
             if (done && ++completionFrames >= 30) window.Close();
             if (fixture != null && p.Phase == "error" && captured.Contains("error")) window.Close();
         };
@@ -168,29 +238,67 @@ public static class FirstRunSetup
         for (int y = height - 1; y >= 0; y--) file.Write(pixels, y * width * 3, width * 3);
     }
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    // Blittable OPENFILENAMEW: avoids Marshal.SizeOf<OpenFileName>()
+    // throwing on managed StringBuilder/string fields in the v1.0 release.
+    [StructLayout(LayoutKind.Sequential)]
     struct OpenFileName
     {
-        public int Size; public nint Owner, Instance; public string Filter;
-        public nint CustomFilter; public int MaxCustomFilter, FilterIndex;
-        public StringBuilder File; public int MaxFile; public nint FileTitle;
-        public int MaxFileTitle; public string? InitialDir, Title; public int Flags;
-        public short FileOffset, FileExtension; public nint DefaultExtension, CustomData, Hook, TemplateName, Reserved;
+        public int Size;
+        public nint Owner, Instance, Filter, CustomFilter;
+        public int MaxCustomFilter, FilterIndex;
+        public nint File;
+        public int MaxFile;
+        public nint FileTitle;
+        public int MaxFileTitle;
+        public nint InitialDir, Title;
+        public int Flags;
+        public short FileOffset, FileExtension;
+        public nint DefaultExtension, CustomData, Hook, TemplateName, Reserved;
         public int Reserved2, FlagsEx;
     }
-    [DllImport("comdlg32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+
+    [DllImport("comdlg32.dll", EntryPoint = "GetOpenFileNameW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     static extern bool GetOpenFileName(ref OpenFileName value);
 
+    [DllImport("comdlg32.dll", EntryPoint = "CommDlgExtendedError")]
+    static extern uint CommDlgExtendedError();
+
     static string? ChooseDisc()
     {
-        var buffer = new StringBuilder(32768);
-        var dialog = new OpenFileName
+        const int pathCapacity = 32768;
+        nint pathBuffer = Marshal.AllocHGlobal(pathCapacity * sizeof(char));
+        nint filterBuffer = Marshal.StringToHGlobalUni(
+            "PlayStation disc (BIN/CUE)\0*.cue;*.bin\0All files\0*.*\0\0");
+        nint titleBuffer = Marshal.StringToHGlobalUni(
+            "Select Vigilante 8: 2nd Offense (USA)");
+        try
         {
-            Size = Marshal.SizeOf<OpenFileName>(), Filter = "PlayStation disc (BIN/CUE)\0*.cue;*.bin\0\0",
-            FilterIndex = 1, File = buffer, MaxFile = buffer.Capacity,
-            Title = "Select Vigilante 8: 2nd Offense", Flags = 0x1000 | 0x800 | 8
-        };
-        return GetOpenFileName(ref dialog) ? buffer.ToString() : null;
+            Marshal.WriteInt16(pathBuffer, 0);
+            var dialog = new OpenFileName
+            {
+                Size = Marshal.SizeOf<OpenFileName>(),
+                Filter = filterBuffer,
+                FilterIndex = 1,
+                File = pathBuffer,
+                MaxFile = pathCapacity,
+                Title = titleBuffer,
+                Flags = 0x00080000 | 0x00001000 | 0x00000800 | 0x00000008,
+            };
+            if (GetOpenFileName(ref dialog))
+                return Marshal.PtrToStringUni(pathBuffer);
+
+            uint error = CommDlgExtendedError();
+            if (error != 0)
+                throw new InvalidOperationException(
+                    "Windows file dialog error 0x" + error.ToString("X8"));
+            return null;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(titleBuffer);
+            Marshal.FreeHGlobal(filterBuffer);
+            Marshal.FreeHGlobal(pathBuffer);
+        }
     }
 }
